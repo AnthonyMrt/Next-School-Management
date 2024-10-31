@@ -2,49 +2,73 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import InputField from "../InputField";
-import Image from "next/image";
-
-const schema = z.object({
-  username: z
-    .string()
-    .min(3, { message: "Username must be at least 3 characters long!" })
-    .max(20, { message: "Username must be at most 20 characters long!" }),
-  email: z.string().email({ message: "Invalid email address!" }),
-  password: z
-    .string()
-    .min(8, { message: "Password must be at least 8 characters long!" }),
-  firstName: z.string().min(1, { message: "First name is required!" }),
-  lastName: z.string().min(1, { message: "Last name is required!" }),
-  phone: z.string().min(1, { message: "Phone is required!" }),
-  address: z.string().min(1, { message: "Address is required!" }),
-});
-
-type Inputs = z.infer<typeof schema>;
+import { parentSchema, ParentSchema } from "@/lib/formValidationSchemas";
+import { createParent, updateParent } from "@/lib/actions";
+import { Dispatch, SetStateAction, useEffect } from "react";
+import { toast } from "react-toastify";
+import { useRouter } from "next/navigation";
+import { useFormState } from "react-dom";
 
 const ParentForm = ({
   type,
   data,
+  setOpen,
+  relatedData,
 }: {
   type: "create" | "update";
   data?: any;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+  relatedData?: {
+    students: { id: string; name: string }[];
+    selectedStudentIds?: string[];
+  };
 }) => {
+  const { students = [], selectedStudentIds = [] } = relatedData || {};
+
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<Inputs>({
-    resolver: zodResolver(schema),
+  } = useForm<ParentSchema>({
+    resolver: zodResolver(parentSchema),
+    defaultValues: {
+      ...data,
+      students: type === "update" ? selectedStudentIds : [], // Pre-select children for updates
+      password: "", // Set password to an empty string by default
+    },
   });
 
-  const onSubmit = handleSubmit((data) => {
-    console.log(data);
+  const [state, formAction] = useFormState(
+    type === "create" ? createParent : updateParent,
+    { success: false, error: false }
+  );
+
+  const router = useRouter();
+
+  const onSubmit = handleSubmit((formData) => {
+    formAction({
+      ...formData,
+      students: formData.students || [], // Optional handling for students
+    });
   });
+
+  useEffect(() => {
+    if (state.success) {
+      toast(`Parent has been ${type === "create" ? "created" : "updated"}!`);
+      setOpen(false);
+      router.refresh();
+    }
+  }, [state.success, router, type, setOpen]);
+
+  console.log("test", data);
 
   return (
     <form className="flex flex-col gap-8" onSubmit={onSubmit}>
-      <h1 className="text-xl font-semibold">Create a new parent</h1>
+      <h1 className="text-xl font-semibold">
+        {type === "create" ? "Create a new parent" : "Update the parent"}
+      </h1>
+
       <span className="text-xs text-gray-400 font-medium">
         Authentication Information
       </span>
@@ -67,28 +91,28 @@ const ParentForm = ({
           label="Password"
           name="password"
           type="password"
-          defaultValue={data?.password}
           register={register}
           error={errors?.password}
         />
       </div>
+
       <span className="text-xs text-gray-400 font-medium">
         Personal Information
       </span>
       <div className="flex justify-between flex-wrap gap-4">
         <InputField
           label="First Name"
-          name="firstName"
-          defaultValue={data?.firstName}
+          name="name"
+          defaultValue={data?.name}
           register={register}
-          error={errors.firstName}
+          error={errors.name}
         />
         <InputField
           label="Last Name"
-          name="lastName"
-          defaultValue={data?.lastName}
+          name="surname"
+          defaultValue={data?.surname}
           register={register}
-          error={errors.lastName}
+          error={errors.surname}
         />
         <InputField
           label="Phone"
@@ -105,7 +129,29 @@ const ParentForm = ({
           error={errors.address}
         />
       </div>
-      <button className="bg-blue-400 text-white p-2 rounded-md">
+
+      <div className="flex flex-col gap-2 w-full md:w-1/2">
+        <label className="text-xs text-gray-500">Children</label>
+        <select
+          multiple
+          className="ring-[1.5px] ring-gray-300 p-2 rounded-md text-sm w-full"
+          {...register("students")}
+          defaultValue={selectedStudentIds} // Set default selected children for updates
+        >
+          {students.map((student) => (
+            <option key={student.id} value={student.id}>
+              {student.name}
+            </option>
+          ))}
+        </select>
+        {errors.students?.message && (
+          <p className="text-xs text-red-400">
+            {errors.students.message.toString()}
+          </p>
+        )}
+      </div>
+
+      <button type="submit" className="bg-blue-400 text-white p-2 rounded-md">
         {type === "create" ? "Create" : "Update"}
       </button>
     </form>

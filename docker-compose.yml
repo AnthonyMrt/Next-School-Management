@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  postgress:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: juicydev
+      POSTGRES_PASSWORD: juicy123456
+      POSTGRES_DB: school
+    ports:
+      - '32768:5432'
+    volumes:
+      - postgres_data:/var/lin/postgresgl/data
+
+  app:
+    container_name: nextjs_app
+    ports:
+      - '3000:3000'
+    environment:
+      - DATABASE_URL: "postgresql://juicydev:juicy123456@localhost:32768/school?schema=public"
+    depends_on:
+      - :postgres
